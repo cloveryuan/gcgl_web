@@ -1,0 +1,16 @@
+{
+  "id": "2420609",
+  "name": "工程管理V1",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon-",
+  "description": "",
+  "glyphs": [
+    {
+      "icon_id": "16984924",
+      "name": "高级查询",
+      "font_class": "gaojichaxun",
+      "unicode": "e646",
+      "unicode_decimal": 58950
+    }
+  ]
+}
