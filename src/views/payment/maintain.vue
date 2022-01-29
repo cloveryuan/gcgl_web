@@ -1,18 +1,24 @@
 <template>
   <div class="wrap">
     <ul class="_left" v-loading="pointLoading">
+      <!-- <li>
+        <el-button type="primary" icon="el-icon-plus" @click="addPoint">新增付款记录点位</el-button>
+      </li> -->
       <li>
         <el-input v-model="searchWords"  placeholder="请输入" prefix-icon="el-icon-search" style="width:150px;" @blur="searchPoint" @change="searchPoint"></el-input>
       </li>
       <li
         v-for="p in points"
-        :key="p.point_code"
-        :class="{point:true,isRed:p.status===2,isBlue:p.status===1}"
+        :key="p.pay_point_code"
+        :class="{point:true,isRed:p.type===2,isBlue:p.type===1}"
         @click="clickPoint(p)">
-        <span class="shou" v-if="active&&(active.point_code===p.point_code)">
+        <span class="shou" v-if="active&&(active.pay_point_code===p.pay_point_code)">
           <i class="el-icon-thumb"></i>
         </span>
-        <span v-html="p.point_code_hight"></span>
+        <span v-html="p.pay_point_code_hight"></span>
+        <span class="del" @click.stop="delPoint(p)">
+          <i class="el-icon-delete"></i>
+        </span>
       </li>
     </ul>
     <div class="_right">
@@ -22,23 +28,26 @@
         v-loading="procLoading"
         node-key="id"
         empty-text="点击点位切换工序"
-        @node-click="clickProc">
-        <span  slot-scope="{ node,data }" :class="{'custom-tree-node':true,isRed:data.status===2,isBlue:data.status===1}" >
+        :default-expanded-keys="defaultShowNodes"
+        @node-click="clickProc"
+        @node-expand="handleNodeExpand"
+        @node-collapse="handleNodeCollapse">
+        <span  slot-scope="{ node,data }" :class="{'custom-tree-node':true,isRed:data.type===2,isBlue:data.type===1}" >
           <!-- :class="{isActive:active&&(data.procCode&&active.procCode===data.procCode)}" -->
           <span class="shou">
             <i class="el-icon-thumb" v-if="active&&(data.procCode&&active.procCode===data.procCode)"></i>
             <span>{{ node.label }}</span>
           </span>
           <span v-if="data.procCode">
-            <el-button  size="mini" @click="canclePay(data)">取消</el-button>
-            <el-button  size="mini" @click="surePay(data)">付款</el-button>
+            <el-button  size="mini" @click.stop="canclePay(data)" v-if="data.type===1">取消</el-button>
+            <el-button  size="mini" @click.stop="surePay(data)" v-if="data.type===2 || data.type===0">付款</el-button>
           </span>
         </span>
       </el-tree>
       <div class="info">
-        <div class="info_wrap" v-loading="infoLoading" v-if="procInfo">
-          <p><span>点位编码:{{active.point_code}}</span></p>
-          <p style="margin-top:10px;"><span>点位名称:{{active.point_name}}</span></p>
+        <div class="info_wrap" v-loading="infoLoading" v-if="active">
+          <p><span>点位编码:{{active.pay_point_code}}</span></p>
+          <!-- <p style="margin-top:10px;"><span>点位名称:{{active.point_name}}</span></p> -->
           <info
             :deviceList="deviceList"
             :procLists="oneProcLists"
@@ -55,9 +64,13 @@
               highlight-current-row
               border
             >
-              <el-table-column label="标题" prop="title" align="center" />
-              <el-table-column label="操作人" align="center" prop="user"></el-table-column>
-              <el-table-column label="操作时间"  align="center"  prop="time"></el-table-column>
+              <el-table-column prop="pay_title" label="标题"  :show-overflow-tooltip="true" align="center"></el-table-column>
+              <el-table-column prop="create_user" label="操作人" width="90" :show-overflow-tooltip="true" align="center"></el-table-column>
+              <el-table-column prop="create_time" label="操作时间"  :show-overflow-tooltip="true" align="center">
+                <template slot-scope="scope">
+                  <span>{{ parseTime(scope.row.create_time) }}</span>
+                </template>
+              </el-table-column>
             </el-table>
           </div>
         </div>
@@ -75,6 +88,7 @@
 <script>
 import info from '../rate/components/info.vue'
 import config from '../../config/config'
+import { parseTime } from '@/utils/tool'
 export default {
   name: 'maintain_payment',
   props: {
@@ -92,8 +106,8 @@ export default {
       searchWords: '',
       procLoading: false,
       procList: [],
+      defaultShowNodes: [], // 这里存放要默认展开的节点 id
       active: null,
-      procInfo: null,
       allProcs: [], // 全部工序步骤详情
       oneProcLists: [], // 当前选择的一个工序详情
       deviceList: [],
@@ -108,20 +122,10 @@ export default {
     this.getPoints()
   },
   methods: {
+    parseTime,
     async getPoints() {
       this.pointLoading = true
-      const params = {
-        child_array: [],
-        area_array: [],
-        status_array: [],
-        origin_array: [],
-        tag_array: [],
-        project_code: this.current.project_code,
-        point_cond: '',
-        page_no: 1,
-        page_size: 10
-      }
-      const { code, data, message } = await this.$pub.post('/point/manage/list', params)
+      const { code, data, message } = await this.$pub.post('project/pay/point-list', { id: this.current.id })
 
       this.pointLoading = false
       if (code !== 200) {
@@ -131,7 +135,7 @@ export default {
         this.points = (data.list || []).map(m => {
           return {
             ...m,
-            point_code_hight: m.point_code
+            pay_point_code_hight: m.pay_point_code
           }
         })
       }
@@ -151,7 +155,7 @@ export default {
         this.pointLoading = true
         setTimeout(() => {
           this.points.forEach((row, i) => {
-            row.point_code_hight = row.point_code
+            row.pay_point_code_hight = row.pay_point_code
             if (i === this.points.length - 1) {
               this.pointLoading = false
             }
@@ -160,50 +164,52 @@ export default {
       }
     },
     isHight(row) {
-      let num = -1; const point_code = row.point_code
-      num = point_code.toLowerCase().indexOf(this.searchWords.toLowerCase())
+      let num = -1; const pay_point_code = row.pay_point_code
+      num = pay_point_code.toLowerCase().indexOf(this.searchWords.toLowerCase())
       if (num > -1) {
-        const searchName = point_code.substr(num, this.searchWords.length)
+        const searchName = pay_point_code.substr(num, this.searchWords.length)
         const replaceReg = new RegExp(this.searchWords, 'ig')
         const replaceString = '<span class="keyword-lighten">' + searchName + '</span>'
-        row.point_code_hight = (point_code || '').replace(replaceReg, replaceString)
+        row.pay_point_code_hight = (pay_point_code || '').replace(replaceReg, replaceString)
         // tempArr.push(row)
       } else {
-        row.point_code_hight = row.point_code
+        row.pay_point_code_hight = row.pay_point_code
       }
     },
     clickPoint(point) {
       this.active = point
-      this.active.project_code = this.current.project_code
-      this.procInfo = null
-      this.payList = []
       this.oneProcLists = []
+      this.defaultShowNodes = []
 
       this.getIAllProcList()// 全部工序详情
       this.getDeviceList()// 获取物料详情
       this.getProcList()// 当前点位下工序列表
     },
     async getProcList() {
+      this.payList = []
       this.procLoading = true
       this.procList = []
-      const { data, code, message } = await this.$pub.post('/proc/device/proc_list_device', { project_code: this.current.project_code, point_code: this.active.point_code })
+      const { data, code, message } = await this.$pub.post('project/pay/proc-detail', { pay_id: this.current.id, pay_point_code: this.active.pay_point_code })
 
       if (code !== 200) {
         return this.$message.error(message || '获取工序出错了')
       }
-      if (data.length > 0) {
-        this.getProc(data)
+      if (data.list && data.list.length > 0) {
+        this.getProc(data.list)
       }
       this.procLoading = false
     },
     getProc(data) {
-      data.map(m => {
+      data.map((m, i) => {
         const tmpobj = {
           label: m.className,
           children: this.getChild(m.procList, m.classCode),
           ...m
         }
         this.procList.push(tmpobj)
+        if (i === data.length - 1) {
+          this.clickProc(this.active)
+        }
       })
     },
     getChild(arr, class_code) {
@@ -218,8 +224,8 @@ export default {
     // 获取全部工序步骤详情
     async getIAllProcList() {
       const params = {
-        point_code: this.active.point_code,
-        project_code: this.active.project_code
+        point_code: this.active.pay_point_code,
+        project_code: this.current.pay_project_code
       }
       const result = await this.$pub.post('/point/proc_submit_web_list', params)
       if (result.code === 200) {
@@ -247,8 +253,8 @@ export default {
     async getDeviceList() {
       this.deviceList = []
       const params = {
-        point_code: this.active.point_code,
-        project_code: this.active.project_code
+        point_code: this.active.pay_point_code,
+        project_code: this.current.pay_project_code
       }
       const { code, message, data } = await this.$pub.post('/device/build-reg-info', params)
       if (code !== 200) {
@@ -260,9 +266,44 @@ export default {
         this.deviceList = data.device_list || []
       }
     },
+    // 树节点展开
+    handleNodeExpand (data) {
+      // 保存当前展开的节点
+      let flag = false
+      this.defaultShowNodes.some(item => {
+        if (item === data.id) { // 判断当前节点是否存在， 存在不做处理
+          flag = true
+          return true
+        }
+      })
+      if (!flag) { // 不存在则存到数组里
+        this.defaultShowNodes.push(data.id)
+      }
+    },
+    // 树节点关闭
+    handleNodeCollapse (data) {
+      this.defaultShowNodes.some((item, i) => {
+        if (item === data.id) {
+          // 删除关闭节点
+          this.defaultShowNodes.splice(i, 1)
+        }
+      })
+      this.removeChildrenIds(data) // 这里主要针对多级树状结构，当关闭父节点时，递归删除父节点下的所有子节点
+    },
+    // 删除树子节点
+    removeChildrenIds(data) {
+      if (data.children) {
+        data.children.forEach((item) => {
+          const index = this.defaultShowNodes.indexOf(item.id)
+          if (index > 0) {
+            this.defaultShowNodes.splice(index, 1)
+          }
+          this.removeChildrenIds(item)
+        })
+      }
+    },
     clickProc(item) {
-      if (item.procCode && ((!this.active) || (this.active.procCode !== item.procCode))) {
-        this.procInfo = null
+      if (item.procCode) {
         this.payList = []
         this.infoLoading = true
         this.oneProcLists = []
@@ -283,10 +324,6 @@ export default {
         })
         this.getPayLog()
         this.$nextTick(() => {
-          this.procInfo = {
-            proc_code: item.procCode,
-            class_code: item.class_code
-          }
           // // 去掉上一次选中的行样式
           // if (this.prePar) {
           //   this.prePar.classList.remove('isActive_tree_item')
@@ -302,28 +339,113 @@ export default {
       }
     },
     async getPayLog() {
-      // this.payLoading = true
-      // const params = {
-      // }
-      // const { code, data, message } = await this.$pub.post('', params)
+      this.payLoading = true
+      const params = {
+        keyword: '',
+        pay_project_code: this.current.pay_project_code,
+        begin_time: '',
+        end_time: '',
+        pay_ids: this.active.pay_id ? this.active.pay_id : ''
+      }
+      const { code, data, message } = await this.$pub.post('project/pay/list', params)
 
-      // this.payLoading = false
-      // if (code !== 200) {
-      //   this.getPayLog = []
-      //   return this.$message.error(message || '查询付款记录出错了')
-      // } else {
-      //   this.getPayLog = data.list || []
-      // }
-      console.log(11)
-      this.payList = [
-        { title: '2021付款1期', user: '张三', time: '2021年10月10日' },
-        { title: '2021付款2期', user: '张三', time: '2021年10月12日' },
-        { title: '2021付款3期', user: '张三', time: '2021年10月16日' },
-        { title: '2021付款4期', user: '张三', time: '2021年10月19日' }
-      ]
+      this.payLoading = false
+      if (code !== 200) {
+        this.payList = []
+        return this.$message.error(message || '查询付款记录出错了')
+      } else {
+        this.payList = data.list || []
+      }
     },
-    canclePay(data) {},
-    surePay(data) {}
+    // 点位上面操作
+    addPoint() {
+      // project/pay/add-point
+    },
+    delPoint(row) {
+      const pay_id = row.id
+      this.$confirm('确定删除吗?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(async () => {
+        const { code, message } = await this.$pub.post('project/pay/del-point', { pay_id })
+        if (code === 200) {
+          this.getPoints()
+          this.$message({
+            type: 'success',
+            message: message || '删除成功',
+            showClose: true
+          })
+        } else {
+          this.$message({
+            type: 'error',
+            message: message || '删除失败',
+            showClose: true
+          })
+        }
+      }).catch(() => {
+        this.$message({
+          type: 'info',
+          message: '已取消删除',
+          showClose: true
+        })
+      })
+    },
+    // 工序上面操作
+    canclePay(row) {
+      const params = {
+        pay_id: this.current.id,
+        pay_point_code: this.active.pay_point_code,
+        proc_code: row.procCode
+      }
+      this.$confirm('确定取消当前工序的付款记录吗?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(async () => {
+        this.procLoading = true
+        const { code, message } = await this.$pub.post('project/pay/del-detail', params)
+        if (code === 200) {
+          this.$message({
+            type: 'success',
+            message: message || '取消付款成功',
+            showClose: true
+          })
+          this.getPoints()
+          this.getProcList()// 当前点位下工序列表
+        } else {
+          this.$message({
+            type: 'error',
+            message: message || '取消付款失败',
+            showClose: true
+          })
+        }
+        this.procLoading = false
+      }).catch(() => {
+        this.procLoading = false
+        // this.$message({
+        //   type: 'info',
+        //   message: '已取消付款',
+        //   showClose: true
+        // })
+      })
+    },
+    async surePay(row) {
+      this.procLoading = true
+      const params = {
+        pay_id: this.current.id,
+        pay_point_code: this.active.pay_point_code,
+        proc_code: row.procCode
+      }
+      const { code, message } = await this.$pub.post('project/pay/add-detail', params)
+
+      if (code !== 200) {
+        return this.$message.error(message || '工序添加付款记录失败')
+      }
+      this.getPoints()
+      this.getProcList()// 当前点位下工序列表
+      this.procLoading = false
+    }
   }
 }
 </script>
@@ -381,6 +503,10 @@ export default {
     }
   }
   ._left{
+    .el-button{
+      width:100%;
+      padding: 12px 0;
+    }
     .el-input__inner{
       border-left:0;
       border-right:0;
@@ -394,9 +520,27 @@ export default {
       overflow: hidden;
       word-break: break-all;
       padding-left:10px;
+      position: relative;
       cursor: pointer;
       &:hover{
         background: #F5F7FA;
+      }
+      .del{
+        position: absolute;
+        top: -23px;
+        right: -23px;
+        line-height: 0px;
+        width: 46px;
+        height:46px;
+        border-radius: 50%;
+        background: #409eff;
+        font-size:14px;
+        .el-icon-delete{
+          position:absolute;
+          top: 24px;
+          right: 24px;
+          color:#fff;
+        }
       }
     }
     .keyword-lighten {

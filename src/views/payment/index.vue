@@ -3,7 +3,7 @@
     <el-form size="small"  :inline="true">
       <el-form-item label="项目" >
         <el-select
-          v-model="form.project_code"
+          v-model="form.pay_project_code"
           placeholder="请选择"
           filterable
         >
@@ -11,7 +11,7 @@
         </el-select>
       </el-form-item>
       <el-form-item label="关键字">
-        <el-input v-model="form.searchKey"  clearable @clear="handleQuery" @keyup.enter.native="handleQuery"></el-input>
+        <el-input v-model="form.keyword"  clearable @clear="getList" @keyup.enter.native="getList"></el-input>
       </el-form-item>
       <el-form-item label="周期">
         <el-date-picker
@@ -22,14 +22,14 @@
           range-separator="至"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
-          :picker-options="pickerOptions"
-          value-format="yyyy-MM-dd"
           style="width:220px;"
+          value-format="yyyy-MM-dd"
+          :picker-options="pickerOptions"
         >
         </el-date-picker>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleQuery" :loading="tableLoading">查询</el-button>
+        <el-button type="primary" @click="getList" :loading="tableLoading">查询</el-button>
         <el-button @click="handleAdd" v-hasPermi="['payment:opera']">新增</el-button>
       </el-form-item>
     </el-form>
@@ -42,12 +42,16 @@
       style="width: 100%;"
     >
       <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
-      <el-table-column prop="title" label="标题"  :show-overflow-tooltip="true" align="center"></el-table-column>
-      <el-table-column prop="describe" label="描述" align="center" :show-overflow-tooltip="true"></el-table-column>
-      <el-table-column prop="project_name" label="所属项目"  :show-overflow-tooltip="true" align="center"></el-table-column>
-      <el-table-column prop="user" label="操作人" width="90" :show-overflow-tooltip="true" align="center"></el-table-column>
-      <el-table-column prop="time" label="操作时间"  :show-overflow-tooltip="true" align="center"></el-table-column>
-      <el-table-column prop="status_name" label="状态" width="80" align="center"></el-table-column>
+      <el-table-column prop="pay_title" label="标题"  :show-overflow-tooltip="true" align="center"></el-table-column>
+      <el-table-column prop="pay_content" label="描述" align="center" :show-overflow-tooltip="true"></el-table-column>
+      <el-table-column prop="pay_project_code" label="所属项目"  :show-overflow-tooltip="true" align="center"></el-table-column>
+      <el-table-column prop="create_user" label="操作人" width="90" :show-overflow-tooltip="true" align="center"></el-table-column>
+      <el-table-column prop="create_time" label="操作时间"  :show-overflow-tooltip="true" align="center">
+        <template slot-scope="scope">
+          <span>{{ parseTime(scope.row.create_time) }}</span>
+        </template>
+      </el-table-column>
+      <!-- <el-table-column prop="status" label="状态" width="80" align="center"></el-table-column> -->
       <el-table-column prop="opera" label="操作"  width="150px" align="center">
         <template slot-scope="scope">
           <el-button type="text" @click="handleMaintain(scope.row)" v-hasPermi="['payment:opera']">维护</el-button>
@@ -56,7 +60,7 @@
         </template>
       </el-table-column>
     </el-table>
-    <div style="display:flex;justify-content:space-between;">
+    <!-- <div style="display:flex;justify-content:space-between;">
       <span  style="color:#999;font-size:14px;">共 {{total}} 条记录</span>
       <el-pagination
         layout="prev, pager, next,sizes"
@@ -70,7 +74,7 @@
         background
       >
       </el-pagination>
-    </div>
+    </div> -->
 
     <!-- 新增 编辑 -->
     <el-dialog
@@ -80,18 +84,18 @@
       custom-class="payment_opera"
       :append-to-body="true"
     >
-      <opera :current="current" :projectList="projectList" :operaFlag.sync="operaFlag" @handleQuery="handleQuery" v-if="operaFlag"></opera>
+      <opera :current="current" :projectList="projectList" :operaFlag.sync="operaFlag" @handleQuery="getList" v-if="operaFlag"></opera>
     </el-dialog>
 
     <!-- 维护 -->
     <el-drawer
-      :title="current?current.title:''"
+      :title="current?current.pay_title:''"
       :visible.sync="maintainFlag"
       size="90%"
       custom-class="payment_maintain"
       :append-to-body="true"
     >
-      <maintain :current="current"  :maintainFlag.sync="operaFlag" @handleQuery="handleQuery" v-if="maintainFlag"></maintain>
+      <maintain :current="current"  :maintainFlag.sync="operaFlag" @handleQuery="getList" v-if="maintainFlag"></maintain>
     </el-drawer>
   </div>
 </template>
@@ -99,19 +103,20 @@
 <script>
 import opera from './opera.vue'
 import maintain from './maintain.vue'
+import { parseTime } from '@/utils/tool'
 export default {
   name: 'payment',
   data () {
     return {
       form: {
-        project_code: '',
-        searchKey: '',
+        pay_project_code: '',
+        keyword: '',
         time: null
       },
       projectList: [],
       tableLoading: false,
       tableData: [],
-      tableHeight: window.innerHeight - 230,
+      tableHeight: window.innerHeight - 210,
       total: 0,
       page: {
         page_no: 1,
@@ -132,9 +137,9 @@ export default {
             onClick(picker) {
               const curdate = new Date()
               const end = curdate.setDate(curdate.getDate() - 1)
-              const start = end
+              const start = new Date(end)
               // start.setTime(start.getTime() - 3600 * 1000 * 24 * 7);
-              picker.$emit('pick', [start, end])
+              picker.$emit('pick', [start, start])
             }
           },
           {
@@ -145,7 +150,7 @@ export default {
               const nowDay = now.getDate() // 当前日
               const nowMonth = now.getMonth() // 当前月
               var nowYear = now.getYear() // 当前年
-              nowYear += nowYear < 2000 ? 2000 : 0 //
+              nowYear += nowYear < 2000 ? 1900 : 0 //
               const end = new Date(
                 nowYear,
                 nowMonth,
@@ -221,17 +226,17 @@ export default {
   },
   created() {
     this.getProjectList()
-    this.handleQuery()
   },
   mounted() {
     window.onresize = () => {
-      this.tableHeight = window.innerHeight - 230
+      this.tableHeight = window.innerHeight - 210
     }
   },
   components: {
     opera, maintain
   },
   methods: {
+    parseTime,
     async getProjectList() {
       try {
         const params = {
@@ -258,44 +263,34 @@ export default {
       }
     },
     async getList() {
-      // if (!this.form.project_code) {
-      //   return this.$message({
-      //     type: 'error',
-      //     message: '项目未选择,请先选择项目',
-      //     showClose: true
-      //   })
-      // }
+      if (!this.form.pay_project_code) {
+        return this.$message({
+          type: 'error',
+          message: '项目未选择,请先选择项目',
+          showClose: true
+        })
+      }
       this.tableLoading = true
       const time = this.form.time || []
       const params = {
-        searchKey: this.form.searchKey,
-        project_code: this.form.project_code,
+        keyword: this.form.keyword,
+        pay_project_code: this.form.pay_project_code,
         begin_time: time[0] ? time[0] + ' 00:00:00' : '',
-        end_time: time[1] ? time[1] + ' 23:59:59' : '',
-        page_no: this.page.page_no,
-        page_size: this.page.page_size
+        end_time: time[1] ? time[1] + ' 23:59:59' : ''
+        // page_no: this.page.page_no,
+        // page_size: this.page.page_size
       }
-      console.log(params)
-      this.tableData = [
-        { status: 0, project_code: 'XZPA20200601', title: '徐州市公安局智能化社会治安防控体系项目一期（烽火台工程）', describe: '徐州市公安局智能化社会治安防控体系项目一期（烽火台工程）', project_name: '徐州市公安局智能化社会治安防控体系项目一期（烽火台工程）', user: '2021亭湖项目付款', time: '2021年10月10日', status_name: '已确认' },
-        { status: 0, project_code: 'TEST20200610', title: '测试项目', describe: '测试项目', project_name: '测试项目', user: '测试项目', time: '2021年10月10日', status_name: '已确认' },
-        { status: 1, project_code: 'THAF20200619', title: '亭湖区安防大数据三年行动计划建设项目', describe: '亭湖区安防大数据三年行动计划建设项目', project_name: '亭湖区安防大数据三年行动计划建设项目', user: '2021亭湖项目付款', time: '2021年10月10日', status_name: '已确认' },
-        { status: 0, project_code: 'YCCG2011142', title: '盐城公安智慧节点监控网及智慧绿波带建设项目', describe: '盐城公安智慧节点监控网及智慧绿波带建设项目', project_name: '盐城公安智慧节点监控网及智慧绿波带建设项目', user: '2021亭湖项目付款', time: '2021年10月10日', status_name: '已确认' },
-        { status: 0, project_code: 'YDGC2021-ZB055', title: '2021大丰项目付款', describe: '2021亭湖项目付款', project_name: '盐都区社会治安防控体系建设（一期）设备采购及安装项目', user: '2021亭湖项目付款', time: '2021年10月10日', status_name: '已确认' }
-      ]
-      this.total = 11
-      this.tableLoading = false
 
-      // const { code, data, message } = await this.$pub.post('', params)
-      // this.tableLoading = false
-      // if (code !== 200) {
-      //   this.tableData = []
-      //   this.total = 0
-      //   return this.$message.error(message || '查询出错了')
-      // } else {
-      //   this.tableData = data.list || []
-      //   this.total = data.total
-      // }
+      const { code, data, message } = await this.$pub.post('project/pay/list', params)
+      this.tableLoading = false
+      if (code !== 200) {
+        this.tableData = []
+        this.total = 0
+        return this.$message.error(message || '查询出错了')
+      } else {
+        this.tableData = data.list || []
+        // this.total = data.total
+      }
     },
     handleQuery() {
       this.page.page_no = 1
@@ -322,17 +317,27 @@ export default {
       this.current = row
     },
     handleDel(row) {
-      // const _index = row.$index
+      const id = row.id
       this.$confirm('确定删除吗?', '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        this.$message({
-          type: 'success',
-          message: '删除成功!',
-          showClose: true
-        })
+      }).then(async () => {
+        const { code, message } = await this.$pub.post('project/pay/del', { id })
+        if (code === 200) {
+          this.getList()
+          this.$message({
+            type: 'success',
+            message: message || '删除成功',
+            showClose: true
+          })
+        } else {
+          this.$message({
+            type: 'error',
+            message: message || '删除失败',
+            showClose: true
+          })
+        }
       }).catch(() => {
         this.$message({
           type: 'info',

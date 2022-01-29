@@ -156,6 +156,9 @@ export default {
       this.$pub.post('/point/manage/direct-list', params).then((res) => {
         if (res.code === 200) {
           this.directionList = res.data || []
+          if (this.directionList.length <= 1) {
+            this.direction = this.directionList[0]
+          }
         } else {
           this.$message.error('出错了/point/manage/direct-list')
           this.directionList = []
