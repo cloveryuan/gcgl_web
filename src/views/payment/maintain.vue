@@ -10,15 +10,14 @@
       <li
         v-for="p in points"
         :key="p.pay_point_code"
-        :class="{point:true,isRed:p.type===2,isBlue:p.type===1}"
+        :class="{point:true,isRed:p.type===2,isBlue:p.type===1,isActive_tree_item:active&&(p.pay_point_code&&active.pay_point_code===p.pay_point_code)}"
         @click="clickPoint(p)">
-        <span class="shou" v-if="active&&(active.pay_point_code===p.pay_point_code)">
-          <i class="el-icon-thumb"></i>
-        </span>
-        <span v-html="p.pay_point_code_hight"></span>
-        <span class="del" @click.stop="delPoint(p)">
-          <i class="el-icon-delete"></i>
-        </span>
+        <div class="item">
+          <span v-html="p.pay_point_code_hight"></span>
+          <span class="del" @click.stop="delPoint(p)">
+            <i class="el-icon-delete"></i>
+          </span>
+        </div>
       </li>
     </ul>
     <div class="_right">
@@ -32,12 +31,8 @@
         @node-click="clickProc"
         @node-expand="handleNodeExpand"
         @node-collapse="handleNodeCollapse">
-        <span  slot-scope="{ node,data }" :class="{'custom-tree-node':true,isRed:data.type===2,isBlue:data.type===1}" >
-          <!-- :class="{isActive:active&&(data.procCode&&active.procCode===data.procCode)}" -->
-          <span class="shou">
-            <i class="el-icon-thumb" v-if="active&&(data.procCode&&active.procCode===data.procCode)"></i>
-            <span>{{ node.label }}</span>
-          </span>
+        <span  slot-scope="{ node,data }" :class="{'custom-tree-node':true,isRed:data.type===2,isBlue:data.type===1,isActive:active&&(data.procCode&&active.procCode===data.procCode)}" >
+          <span>{{ node.label }}</span>
           <span v-if="data.procCode">
             <el-button  size="mini" @click.stop="canclePay(data)" v-if="data.type===1">取消</el-button>
             <el-button  size="mini" @click.stop="surePay(data)" v-if="data.type===2 || data.type===0">付款</el-button>
@@ -46,8 +41,8 @@
       </el-tree>
       <div class="info">
         <div class="info_wrap" v-loading="infoLoading" v-if="active">
-          <p><span>点位编码:{{active.pay_point_code}}</span></p>
-          <!-- <p style="margin-top:10px;"><span>点位名称:{{active.point_name}}</span></p> -->
+          <p style="font-weight: 700;font-size:18px;"><span>点位编码:{{active.pay_point_code}}</span></p>
+          <p style="font-weight: 700;font-size:18px;margin:10px 0 15px 0;"><span>点位名称:{{active.pay_point_name}}</span></p>
           <info
             :deviceList="deviceList"
             :procLists="oneProcLists"
@@ -114,7 +109,8 @@ export default {
       statusOptions: config.statusOptions,
       infoLoading: false,
       payList: [],
-      payLoading: false
+      payLoading: false,
+      prePar: null
     }
   },
   components: { info },
@@ -324,16 +320,16 @@ export default {
         })
         this.getPayLog()
         this.$nextTick(() => {
-          // // 去掉上一次选中的行样式
-          // if (this.prePar) {
-          //   this.prePar.classList.remove('isActive_tree_item')
-          // }
-          // // 给当前选中的行样式
-          // const el = document.querySelector('.isActive')
-          // if (el) {
-          //   this.prePar = el.parentNode
-          //   this.prePar.classList.add('isActive_tree_item')
-          // }
+          // 去掉上一次选中的行样式
+          if (this.prePar) {
+            this.prePar.classList.remove('isActive_tree_item')
+          }
+          // 给当前选中的行样式
+          const el = document.querySelector('.isActive')
+          if (el) {
+            this.prePar = el.parentNode
+            this.prePar.classList.add('isActive_tree_item')
+          }
           this.infoLoading = false
         })
       }
@@ -345,7 +341,7 @@ export default {
         pay_project_code: this.current.pay_project_code,
         begin_time: '',
         end_time: '',
-        pay_ids: this.active.pay_id ? this.active.pay_id : ''
+        pay_ids: this.active.pay_id ? this.active.pay_id : '-1'
       }
       const { code, data, message } = await this.$pub.post('project/pay/list', params)
 
@@ -471,6 +467,9 @@ export default {
     height: 100%;
     overflow-x: hidden;
     overflow-y: auto;
+    .isActive_tree_item {
+      background-color:#F5F7FA!important;
+    }
   }
   ._right{
     width:calc(100% - 150px);
@@ -489,8 +488,7 @@ export default {
         height: 36px;
       }
       .isActive_tree_item {
-        color: #fff;
-        background-color: #409eff!important;
+        background-color:#F5F7FA!important;
       }
     }
     .info{
@@ -513,32 +511,34 @@ export default {
       border-top:0;
     }
     .point{
+      .item{
+        position: relative;
+      }
       line-height:50px;
       border-bottom:1px solid #DCDFE6;
       white-space: nowrap;
       text-overflow: ellipsis;
       overflow: hidden;
       word-break: break-all;
-      padding-left:10px;
-      position: relative;
+      padding-left:20px;
       cursor: pointer;
       &:hover{
         background: #F5F7FA;
       }
       .del{
         position: absolute;
-        top: -23px;
-        right: -23px;
+        top: -20px;
+        right: -20px;
         line-height: 0px;
-        width: 46px;
-        height:46px;
+        width: 40px;
+        height:40px;
         border-radius: 50%;
         background: #409eff;
-        font-size:14px;
+        font-size:12px;
         .el-icon-delete{
           position:absolute;
-          top: 24px;
-          right: 24px;
+          top: 22px;
+          right: 22px;
           color:#fff;
         }
       }
@@ -606,9 +606,11 @@ export default {
   }
   .isRed{
     color:#D9001B;
+    font-weight: 700;
   }
   .isBlue{
     color:#02A7F1;
+    font-weight: 700;
   }
 }
 </style>

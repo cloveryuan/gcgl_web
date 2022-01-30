@@ -6,6 +6,7 @@
           v-model="form.pay_project_code"
           placeholder="请选择"
           filterable
+          @change="getList"
         >
           <el-option v-for="item in projectList" :key="item.projectCode" :label="item.projectName" :value="item.projectCode" ></el-option>
         </el-select>
@@ -42,11 +43,12 @@
       style="width: 100%;"
     >
       <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
-      <el-table-column prop="pay_title" label="标题"  :show-overflow-tooltip="true" align="center"></el-table-column>
+      <el-table-column prop="pay_project_code" label="所属项目" width="200"  :show-overflow-tooltip="true" align="center"></el-table-column>
+      <el-table-column prop="pay_title" label="标题" width="300"  :show-overflow-tooltip="true" align="center"></el-table-column>
       <el-table-column prop="pay_content" label="描述" align="center" :show-overflow-tooltip="true"></el-table-column>
-      <el-table-column prop="pay_project_code" label="所属项目"  :show-overflow-tooltip="true" align="center"></el-table-column>
+      <el-table-column prop="nums" label="点位数量" width="90" align="center"></el-table-column>
       <el-table-column prop="create_user" label="操作人" width="90" :show-overflow-tooltip="true" align="center"></el-table-column>
-      <el-table-column prop="create_time" label="操作时间"  :show-overflow-tooltip="true" align="center">
+      <el-table-column prop="create_time" label="操作时间" width="190"  :show-overflow-tooltip="true" align="center">
         <template slot-scope="scope">
           <span>{{ parseTime(scope.row.create_time) }}</span>
         </template>
